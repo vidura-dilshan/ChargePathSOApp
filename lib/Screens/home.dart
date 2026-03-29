@@ -156,7 +156,7 @@ class _HomePageState extends State<HomePage>
                                 icon: Icons.add_location_alt_rounded,
                                 label: 'Register Your\nStation',
                                 description:
-                                    'List your EV charging point on ChargePath and start earning today.',
+                                    'Start earning today.',
                                 badge: 'FREE',
                                 badgeColor: Colors.greenAccent,
                                 decorIcon: Icons.cell_tower_rounded,
@@ -598,7 +598,7 @@ class _ActionCardState extends State<_ActionCard>
               // ── CARD CONTENT ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 18),
+                    horizontal: 22, vertical: 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
