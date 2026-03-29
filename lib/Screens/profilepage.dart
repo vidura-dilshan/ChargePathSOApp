@@ -299,7 +299,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ),
                                     const SizedBox(width: 6),
                                     const Text(
-                                      'EV Driver',
+                                      'Station Owner',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Color(0xFF00C853),

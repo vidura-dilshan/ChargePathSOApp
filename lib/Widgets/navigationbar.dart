@@ -3,22 +3,20 @@ import 'package:flutter/material.dart';
 class CustomNavBar extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onTabChange;
-  final VoidCallback onCenterTap;
 
   const CustomNavBar({
     super.key,
     required this.selectedIndex,
     required this.onTabChange,
-    required this.onCenterTap,
   });
 
-  static const Color _primaryColor = Color(0xFF0253A4);
+  static const Color _primaryColor  = Color(0xFF0253A4);
   static const Color _secondaryBlue = Color(0xFF034485);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 70,
+      height: 72,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [_primaryColor, _secondaryBlue],
@@ -35,53 +33,15 @@ class CustomNavBar extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.home_rounded, 'Home'),
-                _buildNavItem(1, Icons.ev_station_rounded, 'Stations'),
-                const SizedBox(width: 64),
-                _buildNavItem(2, Icons.location_on_rounded, 'Map'),
-                _buildNavItem(3, Icons.person_rounded, 'Profile'),
-              ],
-            ),
-          ),
-
-          // Center booking button — subtle, not oversized
-          Positioned(
-            top: -18,
-            child: GestureDetector(
-              onTap: onCenterTap,
-              child: Container(
-                height: 52,
-                width: 52,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x280253A4),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.bookmark_added_rounded,
-                  color: _primaryColor,
-                  size: 24,
-                ),
-              ),
-            ),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(0, Icons.home_rounded,   'Home'),
+            _buildNavItem(2, Icons.person_rounded, 'Profile'),
+          ],
+        ),
       ),
     );
   }
@@ -95,12 +55,12 @@ class CustomNavBar extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? Colors.white.withOpacity(0.15)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -111,8 +71,10 @@ class CustomNavBar extends StatelessWidget {
               child: Icon(
                 icon,
                 key: ValueKey(isSelected),
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.45),
-                size: isSelected ? 26 : 24,
+                color: isSelected
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.45),
+                size: isSelected ? 27 : 24,
               ),
             ),
             const SizedBox(height: 4),
@@ -133,7 +95,7 @@ class CustomNavBar extends StatelessWidget {
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               height: 3,
-              width: isSelected ? 18 : 0,
+              width: isSelected ? 20 : 0,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(2),

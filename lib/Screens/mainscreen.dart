@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:chargepathso/Screens/home.dart';
-import 'package:chargepathso/Screens/chargingstations.dart';
-import 'package:chargepathso/Screens/routeplanning.dart';
-import 'package:chargepathso/Screens/bookstation.dart';
-import 'package:chargepathso/Widgets/navigationbar.dart';
+import 'registerstation.dart';
 import 'package:chargepathso/Screens/profilepage.dart';
+import 'package:chargepathso/Widgets/navigationbar.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,38 +14,32 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
+  final List<Widget> _pages = const [
+    HomePage(),
+    RegisterStation(),
+    ProfilePage(),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = [
-      HomePage(
-      ),
-      const FindStations(),
-      const RoutePlanningPage(),
-      const ProfilePage(),
-    ];
-
     return Scaffold(
       body: Stack(
         children: [
+          // ── PAGE CONTENT ────────────────────────────────────────────────
           IndexedStack(
             index: _selectedIndex,
-            children: pages,
+            children: _pages,
           ),
+
+          // ── BOTTOM NAV BAR ───────────────────────────────────────────────
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: CustomNavBar(
               selectedIndex: _selectedIndex,
-              onTabChange: (index) {
-                setState(() => _selectedIndex = index);
-              },
-              onCenterTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BookStation()),
-                );
-              },
+              onTabChange: (index) =>
+                  setState(() => _selectedIndex = index),
             ),
           ),
         ],
