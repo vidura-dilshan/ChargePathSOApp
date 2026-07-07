@@ -36,6 +36,8 @@ class _MainScreenState extends State<MainScreen> {
             bottom: 0,
             left: 0,
             right: 0,
+            // CHANGED — removed the SafeArea wrapper; CustomNavBar now
+            // absorbs MediaQuery's bottom inset internally via its own padding
             child: CustomNavBar(
               selectedIndex: _selectedIndex,
               onTabChange: (index) =>
