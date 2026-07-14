@@ -15,8 +15,13 @@ class CustomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ADD THIS — read the device's own bottom inset so we can absorb it
+    // directly into this bar's padding instead of stacking extra space
+    // on top of a fixed height via an external SafeArea.
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      height: 72,
+      // REMOVED: height: 72 — height is now derived from content + padding
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [_primaryColor, _secondaryBlue],
@@ -34,7 +39,8 @@ class CustomNavBar extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        // CHANGED — top/bottom padding now tight + bottomInset absorbed here
+        padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + bottomInset),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -55,7 +61,7 @@ class CustomNavBar extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6), // CHANGED: was vertical: 8
         decoration: BoxDecoration(
           color: isSelected
               ? Colors.white.withOpacity(0.15)
@@ -74,10 +80,10 @@ class CustomNavBar extends StatelessWidget {
                 color: isSelected
                     ? Colors.white
                     : Colors.white.withOpacity(0.45),
-                size: isSelected ? 27 : 24,
+                size: isSelected ? 25 : 22, // CHANGED: was 27 : 24
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3), // CHANGED: was 4
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
@@ -86,7 +92,7 @@ class CustomNavBar extends StatelessWidget {
                     : Colors.white.withOpacity(0.45),
                 fontSize: 10,
                 fontWeight:
-                    isSelected ? FontWeight.w700 : FontWeight.w400,
+                isSelected ? FontWeight.w700 : FontWeight.w400,
                 letterSpacing: 0.3,
               ),
               child: Text(label),

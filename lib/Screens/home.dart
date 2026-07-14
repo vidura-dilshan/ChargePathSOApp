@@ -1,7 +1,7 @@
-import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'registerstation.dart';
+import 'sodashboard.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,13 +14,13 @@ class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   // ── COLORS ────────────────────────────────────────────────────────────────
   static const Color _primary = Color(0xFF0253A4);
-  static const Color _accent  = Color(0xFF00C2FF);
-  static const Color _teal    = Color(0xFF00E5C3);
-  static const Color _bg      = Color(0xFFF0F5FC);
+  static const Color _accent = Color(0xFF00C2FF);
+  static const Color _teal = Color(0xFF00E5C3);
+  static const Color _bg = Color(0xFFF0F5FC);
 
   late AnimationController _animController;
-  late Animation<double>   _fadeAnim;
-  late Animation<Offset>   _slideAnim;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
 
   @override
   void initState() {
@@ -29,11 +29,11 @@ class _HomePageState extends State<HomePage>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _fadeAnim  = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+        );
     _animController.forward();
   }
 
@@ -54,9 +54,9 @@ class _HomePageState extends State<HomePage>
       final prefix = email.split('@').first;
       return prefix
           .split(RegExp(r'[._\-]'))
-          .map((w) => w.isNotEmpty
-              ? '${w[0].toUpperCase()}${w.substring(1)}'
-              : '')
+          .map(
+            (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '',
+          )
           .join(' ')
           .trim();
     }
@@ -70,11 +70,10 @@ class _HomePageState extends State<HomePage>
       PageRouteBuilder(
         pageBuilder: (_, animation, __) => const RegisterStation(),
         transitionsBuilder: (_, animation, __, child) => SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-              parent: animation, curve: Curves.easeOutCubic)),
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         ),
         transitionDuration: const Duration(milliseconds: 380),
@@ -83,19 +82,18 @@ class _HomePageState extends State<HomePage>
   }
 
   void _goToDashboard() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(children: [
-          Icon(Icons.dashboard_rounded, color: Colors.white, size: 18),
-          SizedBox(width: 10),
-          Text('SO Dashboard — coming soon!',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-        ]),
-        backgroundColor: _primary,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.all(16),
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, animation, __) => const SoDashboard(),
+        transitionsBuilder: (_, animation, __, child) => SlideTransition(
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 380),
       ),
     );
   }
@@ -103,7 +101,7 @@ class _HomePageState extends State<HomePage>
   // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final size        = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -137,12 +135,17 @@ class _HomePageState extends State<HomePage>
                       child: Padding(
                         // bottom padding = nav bar (72) + device safe area + breathing room
                         padding: EdgeInsets.fromLTRB(
-                          22, 0, 22,
+                          22,
+                          0,
+                          22,
                           72 + bottomInset + 10,
                         ),
+                        // CHANGED: removed SingleChildScrollView — cards now
+                        // flex-share the available height instead of scrolling
                         child: Column(
                           children: [
                             Expanded(
+                              // CHANGED: was SizedBox(height: 208, ...)
                               child: _ActionCard(
                                 gradient: const LinearGradient(
                                   colors: [
@@ -155,8 +158,7 @@ class _HomePageState extends State<HomePage>
                                 accentColor: _accent,
                                 icon: Icons.add_location_alt_rounded,
                                 label: 'Register Your\nStation',
-                                description:
-                                    'Start earning today.',
+                                description: 'Start earning today.',
                                 badge: 'FREE',
                                 badgeColor: Colors.greenAccent,
                                 decorIcon: Icons.cell_tower_rounded,
@@ -165,6 +167,7 @@ class _HomePageState extends State<HomePage>
                             ),
                             const SizedBox(height: 16),
                             Expanded(
+                              // CHANGED: was SizedBox(height: 208, ...)
                               child: _ActionCard(
                                 gradient: const LinearGradient(
                                   colors: [
@@ -178,7 +181,7 @@ class _HomePageState extends State<HomePage>
                                 icon: Icons.dashboard_rounded,
                                 label: 'SO Dashboard',
                                 description:
-                                    'View sessions, revenue, and live status of your stations.',
+                                'View sessions, revenue, and live status of your stations.',
                                 badge: 'LIVE',
                                 badgeColor: _teal,
                                 decorIcon: Icons.bar_chart_rounded,
@@ -279,8 +282,11 @@ class _HomePageState extends State<HomePage>
             ),
             child: IconButton(
               onPressed: () {},
-              icon: Icon(Icons.notifications_outlined,
-                  color: _primary, size: 22),
+              icon: Icon(
+                Icons.notifications_outlined,
+                color: _primary,
+                size: 22,
+              ),
             ),
           ),
         ],
@@ -297,8 +303,7 @@ class _HomePageState extends State<HomePage>
         children: [
           // Tag pill
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: _primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(20),
@@ -334,13 +339,10 @@ class _HomePageState extends State<HomePage>
           // Main headline with gradient word
           RichText(
             text: TextSpan(
-              style: const TextStyle(
-                height: 1.18,
-                letterSpacing: -0.5,
-              ),
+              style: const TextStyle(height: 1.18, letterSpacing: -0.5),
               children: [
                 const TextSpan(
-                  text: 'Power the Future of', 
+                  text: 'Power the Future of',
                   style: TextStyle(
                     fontSize: 34,
                     fontWeight: FontWeight.w900,
@@ -355,8 +357,7 @@ class _HomePageState extends State<HomePage>
                     foreground: Paint()
                       ..shader = const LinearGradient(
                         colors: [Color(0xFF0253A4), Color(0xFF00C2FF)],
-                      ).createShader(
-                          const Rect.fromLTWH(0, 0, 160, 44)),
+                      ).createShader(const Rect.fromLTWH(0, 0, 160, 44)),
                   ),
                 ),
               ],
@@ -386,9 +387,7 @@ class _HomePageState extends State<HomePage>
                 width: i == 0 ? 30 : 6,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: i == 0
-                      ? _primary
-                      : _primary.withOpacity(0.14),
+                  color: i == 0 ? _primary : _primary.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(2),
                 ),
               );
@@ -442,10 +441,7 @@ class _HomePageState extends State<HomePage>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
-                colors: [
-                  _accent.withOpacity(0.10),
-                  _accent.withOpacity(0.0),
-                ],
+                colors: [_accent.withOpacity(0.10), _accent.withOpacity(0.0)],
               ),
             ),
           ),
@@ -459,10 +455,7 @@ class _HomePageState extends State<HomePage>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
-                colors: [
-                  _primary.withOpacity(0.07),
-                  _primary.withOpacity(0.0),
-                ],
+                colors: [_primary.withOpacity(0.07), _primary.withOpacity(0.0)],
               ),
             ),
           ),
@@ -516,8 +509,10 @@ class _ActionCardState extends State<_ActionCard>
       lowerBound: 0.0,
       upperBound: 1.0,
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.97)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -596,9 +591,12 @@ class _ActionCardState extends State<_ActionCard>
               ),
 
               // ── CARD CONTENT ─────────────────────────────────────────
+              // ── CARD CONTENT ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 14),
+                  horizontal: 22,
+                  vertical: 10, // CHANGED: was 14 — reclaims 8px to fix overflow
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -613,19 +611,26 @@ class _ActionCardState extends State<_ActionCard>
                             color: Colors.white.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.18)),
+                              color: Colors.white.withOpacity(0.18),
+                            ),
                           ),
-                          child: Icon(widget.icon,
-                              color: Colors.white, size: 22),
+                          child: Icon(
+                            widget.icon,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 11, vertical: 5),
+                            horizontal: 11,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: widget.badgeColor.withOpacity(0.18),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color: widget.badgeColor.withOpacity(0.45)),
+                              color: widget.badgeColor.withOpacity(0.45),
+                            ),
                           ),
                           child: Text(
                             widget.badge,
@@ -643,6 +648,7 @@ class _ActionCardState extends State<_ActionCard>
                     // Title + description + CTA
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min, // ADD THIS — Column hugs its content, no forced extra height
                       children: [
                         Text(
                           widget.label,
@@ -654,20 +660,24 @@ class _ActionCardState extends State<_ActionCard>
                             letterSpacing: -0.3,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4), // CHANGED: was 5
                         Text(
                           widget.description,
+                          maxLines: 2, // ADD THIS — safety net for tighter/narrower screens
+                          overflow: TextOverflow.ellipsis, // ADD THIS
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.58),
                             fontSize: 12,
                             height: 1.4,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10), // CHANGED: was 12
                         // CTA pill
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 9),
+                            horizontal: 16,
+                            vertical: 9,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(30),
