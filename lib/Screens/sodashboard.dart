@@ -30,7 +30,12 @@ class SoDashboard extends StatelessWidget {
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(14, 18, 14, 24 + bottomInset),
+              padding: EdgeInsets.fromLTRB(
+                14,
+                18,
+                14,
+                24 + bottomInset,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -191,14 +196,15 @@ class SoDashboard extends StatelessWidget {
           onActionTap: () => _goToRegisterStation(context),
         ),
 
-        Column(
-          children: const [
+        const Column(
+          children: [
             _StationCard(
               stationName: 'Panadura / Bandaragama Rd',
               stationMeta: 'Type 1 · 7 kW · Rs. 12.50/hr',
               badgeText: 'Online',
               badgeColor: _green,
               icon: Icons.power_rounded,
+              initiallyActive: true,
             ),
 
             SizedBox(height: 10),
@@ -209,6 +215,7 @@ class SoDashboard extends StatelessWidget {
               badgeText: 'Online',
               badgeColor: _green,
               icon: Icons.power_rounded,
+              initiallyActive: true,
             ),
 
             SizedBox(height: 10),
@@ -219,6 +226,7 @@ class SoDashboard extends StatelessWidget {
               badgeText: 'Maint.',
               badgeColor: _amber,
               icon: Icons.settings_rounded,
+              initiallyActive: false,
             ),
 
             SizedBox(height: 10),
@@ -229,6 +237,7 @@ class SoDashboard extends StatelessWidget {
               badgeText: 'Offline',
               badgeColor: _red,
               icon: Icons.warning_rounded,
+              initiallyActive: false,
             ),
           ],
         ),
@@ -299,7 +308,8 @@ class SoDashboard extends StatelessWidget {
 
               _NotificationTile(
                 color: _green,
-                message: 'New booking request at Panadura / Bandaragama Rd',
+                message:
+                'New booking request at Panadura / Bandaragama Rd',
                 time: '1 hour ago',
               ),
 
@@ -355,14 +365,18 @@ class SoDashboard extends StatelessWidget {
   }
 
   // ── REUSABLE PANEL ─────────────────────────────────────────────────────────
-  Widget _buildPanel({required Widget child}) {
+  Widget _buildPanel({
+    required Widget child,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _border),
+        border: Border.all(
+          color: _border,
+        ),
         boxShadow: [
           BoxShadow(
             color: _primary.withValues(alpha: 0.08),
@@ -401,7 +415,9 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: SoDashboard._border),
+        border: Border.all(
+          color: SoDashboard._border,
+        ),
         boxShadow: [
           BoxShadow(
             color: SoDashboard._primary.withValues(alpha: 0.08),
@@ -464,12 +480,15 @@ class _StatCard extends StatelessWidget {
 // STATION CARD
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _StationCard extends StatelessWidget {
+class _StationCard extends StatefulWidget {
   final String stationName;
   final String stationMeta;
   final String badgeText;
   final Color badgeColor;
   final IconData icon;
+
+  // This controls the station's starting Active / Inactive state.
+  final bool initiallyActive;
 
   const _StationCard({
     required this.stationName,
@@ -477,19 +496,92 @@ class _StationCard extends StatelessWidget {
     required this.badgeText,
     required this.badgeColor,
     required this.icon,
+    required this.initiallyActive,
   });
 
   @override
+  State<_StationCard> createState() => _StationCardState();
+}
+
+class _StationCardState extends State<_StationCard> {
+  late bool _isActive;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Start the switch using the value provided by the station.
+    _isActive = widget.initiallyActive;
+  }
+
+  void _changeStationStatus(bool value) {
+    setState(() {
+      _isActive = value;
+    });
+
+    // This is currently only UI state.
+    // Later, the Firebase/API update can be added here.
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        content: Row(
+          children: [
+            Icon(
+              _isActive
+                  ? Icons.check_circle_rounded
+                  : Icons.power_settings_new_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Text(
+                _isActive
+                    ? '${widget.stationName} is now active'
+                    : '${widget.stationName} is now inactive',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
+    final Color activeStatusColor = _isActive
+        ? SoDashboard._green
+        : SoDashboard._muted;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: SoDashboard._border),
+        border: Border.all(
+          color: _isActive
+              ? SoDashboard._border
+              : SoDashboard._border.withValues(alpha: 0.8),
+        ),
         boxShadow: [
           BoxShadow(
-            color: SoDashboard._primary.withValues(alpha: 0.08),
+            color: SoDashboard._primary.withValues(
+              alpha: _isActive ? 0.08 : 0.04,
+            ),
             blurRadius: 22,
             offset: const Offset(0, 8),
           ),
@@ -497,32 +589,43 @@ class _StationCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
+          // Station icon
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: SoDashboard._primarySurface,
+              color: _isActive
+                  ? SoDashboard._primarySurface
+                  : SoDashboard._muted.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              icon,
-              color: SoDashboard._primary,
+              _isActive
+                  ? widget.icon
+                  : Icons.power_settings_new_rounded,
+              color: _isActive
+                  ? SoDashboard._primary
+                  : SoDashboard._muted,
               size: 21,
             ),
           ),
 
           const SizedBox(width: 12),
 
+          // Station information
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  stationName,
+                  widget.stationName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SoDashboard._textDark,
+                  style: TextStyle(
+                    color: _isActive
+                        ? SoDashboard._textDark
+                        : SoDashboard._muted,
                     fontSize: 13.3,
                     fontWeight: FontWeight.w800,
                   ),
@@ -531,12 +634,37 @@ class _StationCard extends StatelessWidget {
                 const SizedBox(height: 3),
 
                 Text(
-                  stationMeta,
+                  widget.stationMeta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SoDashboard._muted,
+                  style: TextStyle(
+                    color: SoDashboard._muted.withValues(
+                      alpha: _isActive ? 1 : 0.75,
+                    ),
                     fontSize: 11.5,
+                  ),
+                ),
+
+                const SizedBox(height: 7),
+
+                // Existing Online / Maintenance / Offline status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.badgeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    widget.badgeText.toUpperCase(),
+                    style: TextStyle(
+                      color: widget.badgeColor,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.25,
+                    ),
                   ),
                 ),
               ],
@@ -545,24 +673,36 @@ class _StationCard extends StatelessWidget {
 
           const SizedBox(width: 8),
 
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 9,
-              vertical: 4,
-            ),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              badgeText.toUpperCase(),
-              style: TextStyle(
-                color: badgeColor,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.25,
+          // Active / Inactive toggle
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Transform.scale(
+                scale: 0.82,
+                child: Switch.adaptive(
+                  value: _isActive,
+                  onChanged: _changeStationStatus,
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: SoDashboard._green,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor:
+                  SoDashboard._muted.withValues(alpha: 0.30),
+                ),
               ),
-            ),
+
+              Transform.translate(
+                offset: const Offset(0, -4),
+                child: Text(
+                  _isActive ? 'ACTIVE' : 'INACTIVE',
+                  style: TextStyle(
+                    color: activeStatusColor,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.25,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -600,7 +740,10 @@ class _GraphCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [SoDashboard._primary, SoDashboard._primaryDark],
+          colors: [
+            SoDashboard._primary,
+            SoDashboard._primaryDark,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -657,58 +800,70 @@ class _GraphCard extends StatelessWidget {
                 height: 92,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
-                  children: List.generate(values.length, (index) {
-                    final bool isLastBar = index == values.length - 1;
+                  children: List.generate(
+                    values.length,
+                        (index) {
+                      final bool isLastBar =
+                          index == values.length - 1;
 
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: index == values.length - 1 ? 0 : 7,
-                        ),
-                        child: FractionallySizedBox(
-                          heightFactor: values[index] / 100,
-                          alignment: Alignment.bottomCenter,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isLastBar
-                                  ? Colors.white
-                                  : Colors.white.withValues(alpha: 0.36),
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(8),
-                                topRight: Radius.circular(8),
-                                bottomLeft: Radius.circular(3),
-                                bottomRight: Radius.circular(3),
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right:
+                            index == values.length - 1 ? 0 : 7,
+                          ),
+                          child: FractionallySizedBox(
+                            heightFactor: values[index] / 100,
+                            alignment: Alignment.bottomCenter,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isLastBar
+                                    ? Colors.white
+                                    : Colors.white.withValues(
+                                  alpha: 0.36,
+                                ),
+                                borderRadius:
+                                const BorderRadius.only(
+                                  topLeft: Radius.circular(8),
+                                  topRight: Radius.circular(8),
+                                  bottomLeft: Radius.circular(3),
+                                  bottomRight: Radius.circular(3),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
                 ),
               ),
 
               const SizedBox(height: 7),
 
               Row(
-                children: List.generate(labels.length, (index) {
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: index == labels.length - 1 ? 0 : 7,
-                      ),
-                      child: Text(
-                        labels[index],
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                children: List.generate(
+                  labels.length,
+                      (index) {
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index == labels.length - 1 ? 0 : 7,
+                        ),
+                        child: Text(
+                          labels[index],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color:
+                            Colors.white.withValues(alpha: 0.75),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -723,12 +878,15 @@ class _GraphCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
                         children: [
                           Text(
                             footerLabel,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.73),
+                              color: Colors.white.withValues(
+                                alpha: 0.73,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -795,7 +953,9 @@ class _MiniVehicleGraphCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double maxValue = values.reduce((a, b) => a > b ? a : b);
+    final double maxValue = values.reduce(
+          (a, b) => a > b ? a : b,
+    );
 
     return Container(
       width: double.infinity,
@@ -803,7 +963,9 @@ class _MiniVehicleGraphCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: SoDashboard._border),
+        border: Border.all(
+          color: SoDashboard._border,
+        ),
         boxShadow: [
           BoxShadow(
             color: SoDashboard._primary.withValues(alpha: 0.08),
@@ -860,61 +1022,74 @@ class _MiniVehicleGraphCard extends StatelessWidget {
                   height: 70,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(values.length, (index) {
-                      final double heightFactor = values[index] / maxValue;
-                      final bool isHighest = values[index] == maxValue;
+                    children: List.generate(
+                      values.length,
+                          (index) {
+                        final double heightFactor =
+                            values[index] / maxValue;
 
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right: index == values.length - 1 ? 0 : 6,
-                          ),
-                          child: FractionallySizedBox(
-                            heightFactor: heightFactor,
-                            alignment: Alignment.bottomCenter,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: isHighest
-                                    ? SoDashboard._primary
-                                    : SoDashboard._primary.withValues(
-                                  alpha: 0.18,
-                                ),
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(7),
-                                  topRight: Radius.circular(7),
-                                  bottomLeft: Radius.circular(3),
-                                  bottomRight: Radius.circular(3),
+                        final bool isHighest =
+                            values[index] == maxValue;
+
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              right:
+                              index == values.length - 1 ? 0 : 6,
+                            ),
+                            child: FractionallySizedBox(
+                              heightFactor: heightFactor,
+                              alignment: Alignment.bottomCenter,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isHighest
+                                      ? SoDashboard._primary
+                                      : SoDashboard._primary
+                                      .withValues(
+                                    alpha: 0.18,
+                                  ),
+                                  borderRadius:
+                                  const BorderRadius.only(
+                                    topLeft: Radius.circular(7),
+                                    topRight: Radius.circular(7),
+                                    bottomLeft: Radius.circular(3),
+                                    bottomRight: Radius.circular(3),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }),
+                        );
+                      },
+                    ),
                   ),
                 ),
 
                 const SizedBox(height: 7),
 
                 Row(
-                  children: List.generate(labels.length, (index) {
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: index == labels.length - 1 ? 0 : 6,
-                        ),
-                        child: Text(
-                          labels[index],
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: SoDashboard._muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                  children: List.generate(
+                    labels.length,
+                        (index) {
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right:
+                            index == labels.length - 1 ? 0 : 6,
+                          ),
+                          child: Text(
+                            labels[index],
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: SoDashboard._muted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

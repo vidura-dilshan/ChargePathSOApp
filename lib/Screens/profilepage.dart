@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -10,76 +11,109 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // ── COLORS ─────────────────────────────────────────────────────────────────
+  // ── COLORS ────────────────────────────────────────────────────────────────
   static const Color _primaryColor = Color(0xFF0253A4);
   static const Color _lightFillColor = Color(0xFFE6EFF8);
 
-  // ── RESOLVE DISPLAY NAME (same logic as HomePage) ──────────────────────────
+  // ── RESOLVE DISPLAY NAME ─────────────────────────────────────────────────
   String get _displayName {
     final user = FirebaseAuth.instance.currentUser;
-    if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
+
+    if (user?.displayName != null &&
+        user!.displayName!.trim().isNotEmpty) {
       return user.displayName!.trim();
     }
+
     final email = user?.email ?? '';
+
     if (email.isNotEmpty) {
       final prefix = email.split('@').first;
+
       return prefix
           .split(RegExp(r'[._\-]'))
-          .map((w) =>
-              w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .map(
+            (word) => word.isNotEmpty
+            ? '${word[0].toUpperCase()}${word.substring(1)}'
+            : '',
+      )
           .join(' ')
           .trim();
     }
+
     return 'User';
   }
 
-  String get _email =>
-      FirebaseAuth.instance.currentUser?.email ?? 'No email found';
+  // ── EMAIL ────────────────────────────────────────────────────────────────
+  String get _email {
+    return FirebaseAuth.instance.currentUser?.email ?? 'No email found';
+  }
 
-  // ── INITIALS FOR AVATAR ────────────────────────────────────────────────────
+  // ── INITIALS FOR AVATAR ──────────────────────────────────────────────────
   String get _initials {
     final parts = _displayName.trim().split(' ');
+
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+    }
+
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
       return parts[0][0].toUpperCase();
     }
+
     return 'U';
   }
 
-  // ── LOGOUT ─────────────────────────────────────────────────────────────────
+  // ── LOGOUT ───────────────────────────────────────────────────────────────
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Sign Out',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to sign out of your account?',
-          style: TextStyle(fontSize: 14, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel',
-                style: TextStyle(color: Colors.grey.shade600)),
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
+          title: const Text(
+            'Sign Out',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
             ),
-            child: const Text('Sign Out'),
           ),
-        ],
-      ),
+          content: const Text(
+            'Are you sure you want to sign out of your account?',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade400,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Sign Out'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed == true) {
@@ -89,13 +123,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
+    final Size size = MediaQuery.sizeOf(context);
+
+    // This is the Android/iOS system navigation area at the bottom.
+    final double systemBottomPadding =
+        MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // ── 1. BACKGROUND WAVE HEADER (same as HomePage) ──────────────────
+          // ── 1. BACKGROUND WAVE HEADER ────────────────────────────────────
           ClipPath(
             clipper: _BottomWaveClipper(),
             child: Container(
@@ -108,10 +146,15 @@ class _ProfilePageState extends State<ProfilePage> {
                   Image.asset(
                     'lib/Assets/homeimage.jpeg',
                     fit: BoxFit.cover,
-                    color: const Color(0xFF012B55).withOpacity(0.6),
+                    color: const Color(0xFF012B55).withValues(
+                      alpha: 0.6,
+                    ),
                     colorBlendMode: BlendMode.darken,
-                    errorBuilder: (_, __, ___) =>
-                        Container(color: _primaryColor),
+                    errorBuilder: (_, __, ___) {
+                      return Container(
+                        color: _primaryColor,
+                      );
+                    },
                   ),
                 ],
               ),
@@ -123,9 +166,14 @@ class _ProfilePageState extends State<ProfilePage> {
             bottom: false,
             child: Column(
               children: [
-                // ── TOP BAR ──────────────────────────────────────────────────
+                // ── TOP BAR ────────────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    24,
+                    10,
+                    24,
+                    0,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -138,21 +186,37 @@ class _ProfilePageState extends State<ProfilePage> {
                           letterSpacing: 0.4,
                         ),
                       ),
-                      _buildGlassIconBtn(Icons.settings_outlined),
+                      _buildGlassIconBtn(
+                        Icons.settings_outlined,
+                      ),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // ── SCROLLABLE BODY ──────────────────────────────────────────
+                // ── SCROLLABLE BODY ─────────────────────────────────────────
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+
+                    // IMPORTANT:
+                    //
+                    // The Sign Out button remains INSIDE this scroll view.
+                    //
+                    // This bottom padding creates enough empty space after
+                    // the button so it can scroll completely above the
+                    // custom ChargePath bottom navigation bar.
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      0,
+                      24,
+                      120 + systemBottomPadding,
+                    ),
+
                     child: Column(
                       children: [
-                        // ── AVATAR + NAME CARD ────────────────────────────────
+                        // ── AVATAR + NAME CARD ──────────────────────────────
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(28),
@@ -161,7 +225,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             borderRadius: BorderRadius.circular(28),
                             boxShadow: [
                               BoxShadow(
-                                color: _primaryColor.withOpacity(0.12),
+                                color: _primaryColor.withValues(
+                                  alpha: 0.12,
+                                ),
                                 blurRadius: 28,
                                 offset: const Offset(0, 10),
                               ),
@@ -169,7 +235,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           child: Column(
                             children: [
-                              // Avatar circle with initials
+                              // ── AVATAR ────────────────────────────────────
                               Stack(
                                 alignment: Alignment.bottomRight,
                                 children: [
@@ -189,7 +255,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                       boxShadow: [
                                         BoxShadow(
                                           color:
-                                              _primaryColor.withOpacity(0.3),
+                                          _primaryColor.withValues(
+                                            alpha: 0.3,
+                                          ),
                                           blurRadius: 16,
                                           offset: const Offset(0, 6),
                                         ),
@@ -207,7 +275,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       ),
                                     ),
                                   ),
-                                  // Small EV badge
+
+                                  // ── SMALL EV BADGE ───────────────────────
                                   Container(
                                     width: 28,
                                     height: 28,
@@ -215,11 +284,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: Colors.white, width: 2),
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color:
-                                              Colors.black.withOpacity(0.08),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.08,
+                                          ),
                                           blurRadius: 6,
                                         ),
                                       ],
@@ -235,7 +307,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               const SizedBox(height: 16),
 
-                              // Name
+                              // ── NAME ──────────────────────────────────────
                               Text(
                                 _displayName,
                                 style: const TextStyle(
@@ -248,10 +320,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               const SizedBox(height: 6),
 
-                              // Email pill
+                              // ── EMAIL PILL ────────────────────────────────
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 6),
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _lightFillColor,
                                   borderRadius: BorderRadius.circular(20),
@@ -259,13 +333,18 @@ class _ProfilePageState extends State<ProfilePage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.email_outlined,
-                                        size: 14,
-                                        color: _primaryColor.withOpacity(0.7)),
+                                    Icon(
+                                      Icons.email_outlined,
+                                      size: 14,
+                                      color:
+                                      _primaryColor.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                    ),
                                     const SizedBox(width: 6),
                                     Text(
                                       _email,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 13,
                                         color: _primaryColor,
                                         fontWeight: FontWeight.w600,
@@ -277,13 +356,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               const SizedBox(height: 6),
 
-                              // EV Driver badge
+                              // ── STATION OWNER BADGE ──────────────────────
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 5),
+                                  horizontal: 12,
+                                  vertical: 5,
+                                ),
                                 decoration: BoxDecoration(
                                   color:
-                                      const Color(0xFF00C853).withOpacity(0.1),
+                                  const Color(0xFF00C853).withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
@@ -315,7 +398,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         const SizedBox(height: 20),
 
-                        // ── ACCOUNT INFO CARD ─────────────────────────────────
+                        // ── ACCOUNT INFO CARD ───────────────────────────────
                         _buildInfoCard(
                           title: 'Account Information',
                           icon: Icons.person_rounded,
@@ -336,14 +419,15 @@ class _ProfilePageState extends State<ProfilePage> {
                               icon: Icons.verified_user_rounded,
                               label: 'Account Status',
                               value: 'Verified',
-                              valueColor: const Color(0xFF00C853),
+                              valueColor:
+                              const Color(0xFF00C853),
                             ),
                           ],
                         ),
 
                         const SizedBox(height: 20),
 
-                        // ── APP INFO CARD ─────────────────────────────────────
+                        // ── APP INFO CARD ───────────────────────────────────
                         _buildInfoCard(
                           title: 'App',
                           icon: Icons.info_outline_rounded,
@@ -364,14 +448,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         const SizedBox(height: 28),
 
-                        // ── LOGOUT BUTTON ─────────────────────────────────────
+                        // ── SIGN OUT BUTTON ─────────────────────────────────
+                        //
+                        // This button is intentionally inside the scroll view.
+                        // It will only become visible when the user scrolls
+                        // down to this part of the page.
                         SizedBox(
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton.icon(
                             onPressed: _logout,
-                            icon: const Icon(Icons.logout_rounded,
-                                color: Colors.white, size: 20),
+                            icon: const Icon(
+                              Icons.logout_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             label: const Text(
                               'Sign Out',
                               style: TextStyle(
@@ -381,14 +472,20 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade400,
+                              backgroundColor:
+                              Colors.red.shade400,
+                              foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius:
+                                BorderRadius.circular(16),
                               ),
                             ),
                           ),
                         ),
+
+                        // Small visual gap underneath the button.
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -401,8 +498,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // ── HELPERS ────────────────────────────────────────────────────────────────
-
+  // ── INFO CARD ─────────────────────────────────────────────────────────────
   Widget _buildInfoCard({
     required String title,
     required IconData icon,
@@ -416,7 +512,9 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.07),
+            color: _primaryColor.withValues(
+              alpha: 0.07,
+            ),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
@@ -425,7 +523,7 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section header
+          // ── SECTION HEADER ────────────────────────────────────────────────
           Row(
             children: [
               Container(
@@ -434,7 +532,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: _lightFillColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: _primaryColor, size: 16),
+                child: Icon(
+                  icon,
+                  color: _primaryColor,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
@@ -447,13 +549,16 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           ...children,
         ],
       ),
     );
   }
 
+  // ── INFO ROW ──────────────────────────────────────────────────────────────
   Widget _buildInfoRow({
     required IconData icon,
     required String label,
@@ -461,7 +566,9 @@ class _ProfilePageState extends State<ProfilePage> {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        vertical: 10,
+      ),
       child: Row(
         children: [
           Container(
@@ -471,9 +578,15 @@ class _ProfilePageState extends State<ProfilePage> {
               color: _lightFillColor,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: _primaryColor, size: 18),
+            child: Icon(
+              icon,
+              color: _primaryColor,
+              size: 18,
+            ),
           ),
+
           const SizedBox(width: 14),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,7 +600,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     letterSpacing: 0.3,
                   ),
                 ),
+
                 const SizedBox(height: 2),
+
                 Text(
                   value,
                   style: TextStyle(
@@ -506,6 +621,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ── DIVIDER ───────────────────────────────────────────────────────────────
   Widget _buildDivider() {
     return Divider(
       height: 1,
@@ -514,53 +630,100 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildGlassIconBtn(IconData icon) {
+  // ── GLASS SETTINGS BUTTON ─────────────────────────────────────────────────
+  Widget _buildGlassIconBtn(
+      IconData icon,
+      ) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(15),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(
+          sigmaX: 10,
+          sigmaY: 10,
+        ),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            color: Colors.white.withValues(
+              alpha: 0.15,
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(
+                alpha: 0.2,
+              ),
+            ),
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(icon, color: Colors.white, size: 22),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 22,
+          ),
         ),
       ),
     );
   }
 }
 
-// ── WAVE CLIPPER (same as HomePage) ───────────────────────────────────────────
+// ── BOTTOM WAVE CLIPPER ─────────────────────────────────────────────────────
 class _BottomWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    var path = Path();
-    path.lineTo(0, size.height - 50);
-    var firstControlPoint = Offset(size.width / 4, size.height);
-    var firstEndPoint = Offset(size.width / 2.25, size.height - 30);
+    final path = Path();
+
+    path.lineTo(
+      0,
+      size.height - 50,
+    );
+
+    final firstControlPoint = Offset(
+      size.width / 4,
+      size.height,
+    );
+
+    final firstEndPoint = Offset(
+      size.width / 2.25,
+      size.height - 30,
+    );
+
     path.quadraticBezierTo(
       firstControlPoint.dx,
       firstControlPoint.dy,
       firstEndPoint.dx,
       firstEndPoint.dy,
     );
-    var secondControlPoint =
-        Offset(size.width - (size.width / 3.25), size.height - 80);
-    var secondEndPoint = Offset(size.width, size.height - 40);
+
+    final secondControlPoint = Offset(
+      size.width - (size.width / 3.25),
+      size.height - 80,
+    );
+
+    final secondEndPoint = Offset(
+      size.width,
+      size.height - 40,
+    );
+
     path.quadraticBezierTo(
       secondControlPoint.dx,
       secondControlPoint.dy,
       secondEndPoint.dx,
       secondEndPoint.dy,
     );
-    path.lineTo(size.width, 0);
+
+    path.lineTo(
+      size.width,
+      0,
+    );
+
     path.close();
+
     return path;
   }
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+  bool shouldReclip(
+      CustomClipper<Path> oldClipper,
+      ) {
+    return false;
+  }
 }

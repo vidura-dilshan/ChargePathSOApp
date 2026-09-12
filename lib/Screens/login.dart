@@ -105,28 +105,66 @@ class _LogInState extends State<LogIn> {
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
+
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+
+      // Clear the previously selected Google account.
+      // This forces Google to ask the user which account to use again.
+      await googleSignIn.signOut();
+
+      // Open the Google account chooser.
+      final GoogleSignInAccount? googleUser =
+      await googleSignIn.signIn();
+
+      // User closed/cancelled the account picker.
       if (googleUser == null) {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
         return;
       }
+
+      // Get Google authentication tokens.
       final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final OAuthCredential credential = GoogleAuthProvider.credential(
+      await googleUser.authentication;
+
+      // Create a Firebase credential using the Google tokens.
+      final OAuthCredential credential =
+      GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // Sign in to Firebase.
+      await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+
+      // AuthWrapper in main.dart will automatically
+      // navigate to the logged-in part of the app.
     } on FirebaseAuthException catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      _showErrorDialog(e.message ?? "Google Sign-In failed");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+
+      _showErrorDialog(
+        'Firebase Auth Error\n\n'
+            'Code: ${e.code}\n\n'
+            'Message: ${e.message}',
+      );
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      _showErrorDialog("An error occurred during Google Sign-In");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+
+      debugPrint('GOOGLE SIGN-IN ERROR: $e');
+
+      _showErrorDialog(
+        'Google Sign-In Error\n\n$e',
+      );
     }
   }
-
   void _showErrorDialog(String message) {
     showDialog(
       context: context,

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'Screens/login.dart';
 import 'Screens/mainscreen.dart';
 import 'Widgets/loadingscreen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
@@ -18,10 +19,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'ChargePath',
       debugShowCheckedModeBanner: false,
-      // scaffoldBackgroundColor matches LoadingScreen so any
-      // un-painted frame shows brand color, never white.
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0253A4)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0253A4),
+        ),
         scaffoldBackgroundColor: const Color(0xFFF0F6FF),
         useMaterial3: true,
       ),
@@ -31,7 +32,6 @@ class MyApp extends StatelessWidget {
 }
 
 // ── STARTUP ──────────────────────────────────────────────────────────────────
-// Shown as the very first widget so LoadingScreen appears on frame 1.
 
 class _AppStartup extends StatefulWidget {
   const _AppStartup();
@@ -46,6 +46,9 @@ class _AppStartupState extends State<_AppStartup> {
   @override
   void initState() {
     super.initState();
+
+    // Uses the Firebase configuration already installed
+    // in the native Android/iOS project.
     _init = Firebase.initializeApp();
   }
 
@@ -57,32 +60,31 @@ class _AppStartupState extends State<_AppStartup> {
         if (snapshot.connectionState != ConnectionState.done) {
           return const LoadingScreen();
         }
+
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  "Startup error:\n${snapshot.error}",
+                  'Startup error:\n${snapshot.error}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
+                  style: const TextStyle(
+                    color: Colors.red,
+                  ),
                 ),
               ),
             ),
           );
         }
+
         return const AuthWrapper();
       },
     );
   }
 }
 
-// ── AUTH WRAPPER ──────────────────────────────────────────────────────────────
-// AnimatedSwitcher with a FadeTransition eliminates the white frame that
-// appears when StreamBuilder rebuilds between LoadingScreen and MainScreen.
-// Without this, Flutter needs one unpainted frame to lay out the new widget —
-// AnimatedSwitcher keeps the old widget (LoadingScreen) visible until the
-// new one (MainScreen / LogIn) is fully ready to paint.
+// ── AUTH WRAPPER ─────────────────────────────────────────────────────────────
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -92,31 +94,42 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Determine which child to show
         final Widget child;
+
         if (snapshot.connectionState == ConnectionState.waiting) {
-          child = const LoadingScreen(key: ValueKey('loading'));
+          child = const LoadingScreen(
+            key: ValueKey('loading'),
+          );
         } else if (snapshot.hasError) {
-          child = const Scaffold(
-            key: ValueKey('error'),
-            body: Center(child: Text("Auth Error")),
+          child = Scaffold(
+            key: const ValueKey('error'),
+            body: Center(
+              child: Text(
+                'Authentication error:\n${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         } else if (snapshot.hasData) {
-          child = const MainScreen(key: ValueKey('main'));
+          child = const MainScreen(
+            key: ValueKey('main'),
+          );
         } else {
-          child = const LogIn(key: ValueKey('login'));
+          child = const LogIn(
+            key: ValueKey('login'),
+          );
         }
 
-        // AnimatedSwitcher fades between widgets instead of cutting,
-        // which hides the one-frame white gap on every state transition.
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           switchInCurve: Curves.easeIn,
           switchOutCurve: Curves.easeOut,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
           child: child,
         );
       },
