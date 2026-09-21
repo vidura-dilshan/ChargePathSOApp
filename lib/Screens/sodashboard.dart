@@ -1,25 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'registerstation.dart';
 
 class SoDashboard extends StatelessWidget {
   const SoDashboard({super.key});
 
   // ── THEME ──────────────────────────────────────────────────────────────────
+
   static const Color _primary = Color(0xFF0253A4);
   static const Color _primaryLight = Color(0xFF2979D4);
-  static const Color _primaryDark = Color(0xFF013C78);
   static const Color _primarySurface = Color(0xFFE6EFF8);
+
   static const Color _bg = Color(0xFFF5F7FA);
+
   static const Color _textDark = Color(0xFF111827);
   static const Color _muted = Color(0xFF6B7280);
   static const Color _border = Color(0xFFE4EAF2);
+
   static const Color _green = Color(0xFF16A34A);
   static const Color _amber = Color(0xFFF59E0B);
   static const Color _red = Color(0xFFDC2626);
 
+  // ── BUILD ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomInset =
+        MediaQuery.of(context).padding.bottom;
+
+    final User? currentUser =
+        FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: Column(
+          children: [
+            _buildHeader(context),
+
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'You must be logged in to view your stations.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _bg,
@@ -28,36 +65,189 @@ class SoDashboard extends StatelessWidget {
           _buildHeader(context),
 
           Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                14,
-                18,
-                14,
-                24 + bottomInset,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuickStats(),
+            child: StreamBuilder<
+                QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('stations')
+                  .where(
+                'user_id',
+                isEqualTo: currentUser.uid,
+              )
+                  .snapshots(),
+              builder: (context, snapshot) {
+                // ── ERROR ──────────────────────────────────────────────────
 
-                  const SizedBox(height: 18),
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment:
+                        MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: _red,
+                            size: 42,
+                          ),
 
-                  _buildMyStationsSection(context),
+                          const SizedBox(height: 12),
 
-                  const SizedBox(height: 18),
+                          const Text(
+                            'Could not load your stations',
+                            style: TextStyle(
+                              color: _textDark,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
 
-                  _buildWeeklyEarningsSection(),
+                          const SizedBox(height: 8),
 
-                  const SizedBox(height: 18),
+                          Text(
+                            snapshot.error.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
 
-                  _buildWeeklyVehiclesSection(),
+                // ── LOADING ────────────────────────────────────────────────
 
-                  const SizedBox(height: 18),
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: _primary,
+                    ),
+                  );
+                }
 
-                  _buildNotificationsSection(),
-                ],
-              ),
+                final List<
+                    QueryDocumentSnapshot<
+                        Map<String, dynamic>>>
+                stationDocuments =
+                    snapshot.data?.docs ?? [];
+
+                final int totalStations =
+                    stationDocuments.length;
+
+                // ── TOTAL REVENUE ─────────────────────────────────────────
+
+                double totalRevenue = 0.0;
+
+                for (final stationDocument
+                in stationDocuments) {
+                  final Map<String, dynamic> station =
+                  stationDocument.data();
+
+                  totalRevenue += _doubleValue(
+                    station['total_income'],
+                  );
+                }
+
+                // ── PENDING BOOKING REQUESTS ───────────────────────────────
+                //
+                // Driver app is frozen.
+                //
+                // Therefore we do NOT depend on:
+                //
+                // is_booking_requested == "1"
+                //
+                // A booking is considered pending when:
+                //
+                // booking_user_id is not empty
+                // AND
+                // is_booking_confirmed != "1"
+                //
+                // ----------------------------------------------------------------
+
+                final List<
+                    QueryDocumentSnapshot<
+                        Map<String, dynamic>>>
+                pendingBookings =
+                stationDocuments.where(
+                      (
+                      QueryDocumentSnapshot<
+                          Map<String, dynamic>>
+                      document,
+                      ) {
+                    final Map<String, dynamic> data =
+                    document.data();
+
+                    final String bookingUserId =
+                    _stringValue(
+                      data['booking_user_id'],
+                      fallback: '',
+                    );
+
+                    final String bookingConfirmed =
+                    _stringValue(
+                      data['is_booking_confirmed'],
+                      fallback: '0',
+                    );
+
+                    return bookingUserId.isNotEmpty &&
+                        bookingConfirmed != '1';
+                  },
+                ).toList();
+
+                return SingleChildScrollView(
+                  physics:
+                  const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    14,
+                    18,
+                    14,
+                    24 + bottomInset,
+                  ),
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                    children: [
+                      // ── TOP STAT CARDS ───────────────────────────────────
+
+                      _buildQuickStats(
+                        totalStations: totalStations,
+                        totalRevenue: totalRevenue,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ── OWNER STATIONS ───────────────────────────────────
+
+                      _buildMyStationsSection(
+                        context,
+                        stationDocuments,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ── BOOKING REQUESTS ─────────────────────────────────
+                      //
+                      // Weekly Earnings and Weekly Vehicles are temporarily
+                      // removed from the dashboard and replaced by this.
+                      // ----------------------------------------------------------------
+
+                      _buildBookingRequestsSection(
+                        pendingBookings,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ── NOTIFICATIONS ────────────────────────────────────
+
+                      _buildNotificationsSection(),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -66,13 +256,24 @@ class SoDashboard extends StatelessWidget {
   }
 
   // ── NAVIGATION ─────────────────────────────────────────────────────────────
-  void _goToRegisterStation(BuildContext context) {
+
+  void _goToRegisterStation(
+      BuildContext context,
+      ) {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, animation, __) => const RegisterStation(),
-        transitionsBuilder: (_, animation, __, child) {
-          final slideAnimation = Tween<Offset>(
+        pageBuilder: (_, animation, __) {
+          return const RegisterStation();
+        },
+        transitionsBuilder: (
+            _,
+            animation,
+            __,
+            child,
+            ) {
+          final Animation<Offset> slideAnimation =
+          Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
           ).animate(
@@ -87,17 +288,24 @@ class SoDashboard extends StatelessWidget {
             child: child,
           );
         },
-        transitionDuration: const Duration(milliseconds: 380),
+        transitionDuration:
+        const Duration(milliseconds: 380),
       ),
     );
   }
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
-  Widget _buildHeader(BuildContext context) {
+
+  Widget _buildHeader(
+      BuildContext context,
+      ) {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [_primary, _primaryLight],
+          colors: [
+            _primary,
+            _primaryLight,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -105,7 +313,12 @@ class SoDashboard extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 20, 20),
+          padding: const EdgeInsets.fromLTRB(
+            8,
+            8,
+            20,
+            20,
+          ),
           child: Row(
             children: [
               IconButton(
@@ -114,12 +327,15 @@ class SoDashboard extends StatelessWidget {
                   color: Colors.white,
                   size: 20,
                 ),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
               ),
 
               const Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
                   children: [
                     Text(
                       'SO Dashboard',
@@ -130,7 +346,9 @@ class SoDashboard extends StatelessWidget {
                         letterSpacing: 0.3,
                       ),
                     ),
+
                     SizedBox(height: 4),
+
                     Text(
                       'Track your charging network',
                       style: TextStyle(
@@ -145,8 +363,11 @@ class SoDashboard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white.withValues(
+                    alpha: 0.15,
+                  ),
+                  borderRadius:
+                  BorderRadius.circular(14),
                 ),
                 child: const Icon(
                   Icons.dashboard_rounded,
@@ -162,23 +383,28 @@ class SoDashboard extends StatelessWidget {
   }
 
   // ── QUICK STATS ────────────────────────────────────────────────────────────
-  Widget _buildQuickStats() {
-    return const Row(
+
+  Widget _buildQuickStats({
+    required int totalStations,
+    required double totalRevenue,
+  }) {
+    return Row(
       children: [
         Expanded(
           child: _StatCard(
-            label: "Today's Revenue",
-            value: 'Rs. 8,420',
+            label: 'Total Revenue',
+            value:
+            'Rs. ${totalRevenue.toStringAsFixed(2)}',
             icon: Icons.payments_rounded,
           ),
         ),
 
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
 
         Expanded(
           child: _StatCard(
             label: 'Total Stations',
-            value: '5',
+            value: totalStations.toString(),
             icon: Icons.ev_station_rounded,
           ),
         ),
@@ -187,138 +413,479 @@ class SoDashboard extends StatelessWidget {
   }
 
   // ── MY STATIONS ────────────────────────────────────────────────────────────
-  Widget _buildMyStationsSection(BuildContext context) {
+
+  Widget _buildMyStationsSection(
+      BuildContext context,
+      List<
+          QueryDocumentSnapshot<
+              Map<String, dynamic>>>
+      stationDocuments,
+      ) {
     return Column(
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
       children: [
         _buildSectionHead(
           title: 'My Stations',
           actionText: 'Add station',
-          onActionTap: () => _goToRegisterStation(context),
+          onActionTap: () {
+            _goToRegisterStation(context);
+          },
         ),
 
-        const Column(
+        if (stationDocuments.isEmpty)
+          _buildNoStationsCard(context)
+        else
+          Column(
+            children: List.generate(
+              stationDocuments.length,
+                  (int index) {
+                final QueryDocumentSnapshot<
+                    Map<String, dynamic>>
+                stationDocument =
+                stationDocuments[index];
+
+                final Map<String, dynamic> station =
+                stationDocument.data();
+
+                final String stationName =
+                _stringValue(
+                  station['station_name'],
+                  fallback: 'Unnamed Station',
+                );
+
+                final String connectorType =
+                _stringValue(
+                  station[
+                  'supported_connector_types'],
+                  fallback: 'Unknown connector',
+                );
+
+                final String chargingPower =
+                _stringValue(
+                  station['charging_power'],
+                  fallback: '0',
+                );
+
+                final String costPerKw =
+                _stringValue(
+                  station['cost_per_kw'],
+                  fallback: '0',
+                );
+
+                final String status =
+                _stringValue(
+                  station['status'],
+                  fallback: 'Pending',
+                );
+
+                final String verificationStatus =
+                _stringValue(
+                  station['verification_status'],
+                  fallback: 'Pending',
+                );
+
+                final double actualIncome =
+                _doubleValue(
+                  station['actual_income'],
+                );
+
+                final double totalIncome =
+                _doubleValue(
+                  station['total_income'],
+                );
+
+                final String stationMeta =
+                    '$connectorType · '
+                    '$chargingPower kW · '
+                    'Rs. $costPerKw/kW';
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index ==
+                        stationDocuments.length -
+                            1
+                        ? 0
+                        : 10,
+                  ),
+                  child: _StationCard(
+                    stationId:
+                    stationDocument.id,
+                    stationName:
+                    stationName,
+                    stationMeta:
+                    stationMeta,
+                    status:
+                    status,
+                    verificationStatus:
+                    verificationStatus,
+                    actualIncome:
+                    actualIncome,
+                    totalIncome:
+                    totalIncome,
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── BOOKING REQUESTS ───────────────────────────────────────────────────────
+
+  Widget _buildBookingRequestsSection(
+      List<
+          QueryDocumentSnapshot<
+              Map<String, dynamic>>>
+      pendingBookings,
+      ) {
+    return Column(
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            _StationCard(
-              stationName: 'Panadura / Bandaragama Rd',
-              stationMeta: 'Type 1 · 7 kW · Rs. 12.50/hr',
-              badgeText: 'Online',
-              badgeColor: _green,
-              icon: Icons.power_rounded,
-              initiallyActive: true,
+            const Expanded(
+              child: Text(
+                'Booking Requests',
+                style: TextStyle(
+                  color: _textDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
 
-            SizedBox(height: 10),
-
-            _StationCard(
-              stationName: 'Udawalawe Area',
-              stationMeta: 'Type 2 · 11 kW · Rs. 15.00/hr',
-              badgeText: 'Online',
-              badgeColor: _green,
-              icon: Icons.power_rounded,
-              initiallyActive: true,
-            ),
-
-            SizedBox(height: 10),
-
-            _StationCard(
-              stationName: 'Colombo / Galle Road',
-              stationMeta: 'CCS · 22 kW · Rs. 18.00/hr',
-              badgeText: 'Maint.',
-              badgeColor: _amber,
-              icon: Icons.settings_rounded,
-              initiallyActive: false,
-            ),
-
-            SizedBox(height: 10),
-
-            _StationCard(
-              stationName: 'Kalutara Junction',
-              stationMeta: 'Type 1 · 7 kW · Rs. 12.00/hr',
-              badgeText: 'Offline',
-              badgeColor: _red,
-              icon: Icons.warning_rounded,
-              initiallyActive: false,
-            ),
+            if (pendingBookings.isNotEmpty)
+              Container(
+                padding:
+                const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: _amber.withValues(
+                    alpha: 0.12,
+                  ),
+                  borderRadius:
+                  BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${pendingBookings.length} pending',
+                  style: const TextStyle(
+                    color: _amber,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
           ],
         ),
+
+        const SizedBox(height: 11),
+
+        if (pendingBookings.isEmpty)
+          _buildNoBookingRequestsCard()
+        else
+          Column(
+            children: List.generate(
+              pendingBookings.length,
+                  (int index) {
+                final QueryDocumentSnapshot<
+                    Map<String, dynamic>>
+                document =
+                pendingBookings[index];
+
+                final Map<String, dynamic> data =
+                document.data();
+
+                final String stationName =
+                _stringValue(
+                  data['station_name'],
+                  fallback: 'Unnamed Station',
+                );
+
+                final String bookingDate =
+                _stringValue(
+                  data['booking_date'],
+                  fallback: 'Date unavailable',
+                );
+
+                final String bookingTime =
+                _stringValue(
+                  data['booking_time'],
+                  fallback: 'Time unavailable',
+                );
+
+                final String bookingUserId =
+                _stringValue(
+                  data['booking_user_id'],
+                  fallback: '',
+                );
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index ==
+                        pendingBookings.length - 1
+                        ? 0
+                        : 10,
+                  ),
+                  child: _BookingRequestCard(
+                    stationId: document.id,
+                    stationName: stationName,
+                    bookingDate: bookingDate,
+                    bookingTime: bookingTime,
+                    bookingUserId:
+                    bookingUserId,
+                  ),
+                );
+              },
+            ),
+          ),
       ],
     );
   }
 
-  // ── WEEKLY EARNINGS GRAPH ──────────────────────────────────────────────────
-  Widget _buildWeeklyEarningsSection() {
-    return Column(
-      children: [
-        _buildSectionHead(
-          title: 'Weekly Earnings',
-          actionText: 'Details',
-        ),
+  // ── NO BOOKING REQUESTS ────────────────────────────────────────────────────
 
-        const _GraphCard(
-          title: 'Rs. 47,860',
-          subtitle: 'Last 7 days · 5 stations',
-          values: [38, 55, 44, 70, 50, 82, 65],
-          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-          footerLabel: 'Next payout · Jul 10',
-          footerValue: 'Rs. 32,450',
-          footerButtonText: 'Statement',
+  Widget _buildNoBookingRequestsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(18),
+        border: Border.all(
+          color: _border,
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: _primary.withValues(
+              alpha: 0.06,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 46,
+            height: 46,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _primarySurface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.event_available_rounded,
+                color: _primary,
+                size: 23,
+              ),
+            ),
+          ),
+
+          SizedBox(width: 13),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No pending bookings',
+                  style: TextStyle(
+                    color: _textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+
+                SizedBox(height: 3),
+
+                Text(
+                  'New driver booking requests will appear here.',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 11.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // ── COMPACT WEEKLY VEHICLES GRAPH ──────────────────────────────────────────
-  Widget _buildWeeklyVehiclesSection() {
-    return Column(
-      children: [
-        _buildSectionHead(
-          title: 'Weekly Vehicles',
-          actionText: 'Details',
-        ),
+  // ── NO STATIONS ────────────────────────────────────────────────────────────
 
-        const _MiniVehicleGraphCard(
-          totalVehicles: '214',
-          subtitle: 'Vehicles charged this week',
-          values: [28, 36, 24, 42, 31, 53, 40],
-          labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  Widget _buildNoStationsCard(
+      BuildContext context,
+      ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(18),
+        border: Border.all(
+          color: _border,
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: _primary.withValues(
+              alpha: 0.08,
+            ),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration:
+            const BoxDecoration(
+              color: _primarySurface,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.ev_station_outlined,
+              color: _primary,
+              size: 28,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          const Text(
+            'No stations yet',
+            style: TextStyle(
+              color: _textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          const Text(
+            'Register your first charging station to start managing it here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _muted,
+              fontSize: 12.5,
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          ElevatedButton.icon(
+            onPressed: () {
+              _goToRegisterStation(context);
+            },
+            icon: const Icon(
+              Icons.add_rounded,
+              size: 18,
+            ),
+            label: const Text(
+              'Register Station',
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding:
+              const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  // ── VALUE HELPERS ──────────────────────────────────────────────────────────
+
+  String _stringValue(
+      dynamic value, {
+        required String fallback,
+      }) {
+    if (value == null) {
+      return fallback;
+    }
+
+    final String result =
+    value.toString().trim();
+
+    if (result.isEmpty) {
+      return fallback;
+    }
+
+    return result;
+  }
+
+  double _doubleValue(
+      dynamic value,
+      ) {
+    if (value == null) {
+      return 0.0;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value.toString().trim(),
+    ) ??
+        0.0;
   }
 
   // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+
   Widget _buildNotificationsSection() {
     return Column(
       children: [
         _buildSectionHead(
           title: 'Notifications',
-          actionText: 'Mark read',
         ),
 
         _buildPanel(
-          child: const Column(
+          child: const Row(
             children: [
-              _NotificationTile(
-                color: _red,
-                message: 'Kalutara Junction went offline unexpectedly',
-                time: '18 minutes ago',
+              Icon(
+                Icons.notifications_none_rounded,
+                color: _muted,
+                size: 20,
               ),
 
-              _DividerLine(),
+              SizedBox(width: 10),
 
-              _NotificationTile(
-                color: _green,
-                message:
-                'New booking request at Panadura / Bandaragama Rd',
-                time: '1 hour ago',
-              ),
-
-              _DividerLine(),
-
-              _NotificationTile(
-                color: _primary,
-                message: 'Payout of Rs. 28,900 was deposited',
-                time: 'Yesterday',
+              Expanded(
+                child: Text(
+                  'No new notifications.',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
@@ -327,16 +894,23 @@ class SoDashboard extends StatelessWidget {
     );
   }
 
-  // ── REUSABLE SECTION HEADER ────────────────────────────────────────────────
+  // ── SECTION HEADER ─────────────────────────────────────────────────────────
+
   Widget _buildSectionHead({
     required String title,
     String? actionText,
     VoidCallback? onActionTap,
   }) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 0, 2, 11),
+      padding: const EdgeInsets.fromLTRB(
+        2,
+        0,
+        2,
+        11,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment:
+        MainAxisAlignment.spaceBetween,
         children: [
           Text(
             title,
@@ -364,7 +938,8 @@ class SoDashboard extends StatelessWidget {
     );
   }
 
-  // ── REUSABLE PANEL ─────────────────────────────────────────────────────────
+  // ── PANEL ──────────────────────────────────────────────────────────────────
+
   Widget _buildPanel({
     required Widget child,
   }) {
@@ -373,13 +948,16 @@ class SoDashboard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+        BorderRadius.circular(18),
         border: Border.all(
           color: _border,
         ),
         boxShadow: [
           BoxShadow(
-            color: _primary.withValues(alpha: 0.08),
+            color: _primary.withValues(
+              alpha: 0.08,
+            ),
             blurRadius: 22,
             offset: const Offset(0, 8),
           ),
@@ -414,32 +992,40 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius:
+        BorderRadius.circular(20),
         border: Border.all(
           color: SoDashboard._border,
         ),
         boxShadow: [
           BoxShadow(
-            color: SoDashboard._primary.withValues(alpha: 0.08),
+            color:
+            SoDashboard._primary.withValues(
+              alpha: 0.08,
+            ),
             blurRadius: 22,
             offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: SoDashboard._primarySurface,
-              borderRadius: BorderRadius.circular(12),
+              color:
+              SoDashboard._primarySurface,
+              borderRadius:
+              BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color: SoDashboard._primary,
+              color:
+              SoDashboard._primary,
               size: 21,
             ),
           ),
@@ -451,7 +1037,8 @@ class _StatCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: SoDashboard._muted,
+              color:
+              SoDashboard._muted,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -464,7 +1051,8 @@ class _StatCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: SoDashboard._textDark,
+              color:
+              SoDashboard._textDark,
               fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.4,
@@ -481,106 +1069,249 @@ class _StatCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _StationCard extends StatefulWidget {
+  final String stationId;
   final String stationName;
   final String stationMeta;
-  final String badgeText;
-  final Color badgeColor;
-  final IconData icon;
+  final String status;
+  final String verificationStatus;
 
-  // This controls the station's starting Active / Inactive state.
-  final bool initiallyActive;
+  final double actualIncome;
+  final double totalIncome;
 
   const _StationCard({
+    required this.stationId,
     required this.stationName,
     required this.stationMeta,
-    required this.badgeText,
-    required this.badgeColor,
-    required this.icon,
-    required this.initiallyActive,
+    required this.status,
+    required this.verificationStatus,
+    required this.actualIncome,
+    required this.totalIncome,
   });
 
   @override
-  State<_StationCard> createState() => _StationCardState();
+  State<_StationCard> createState() =>
+      _StationCardState();
 }
 
-class _StationCardState extends State<_StationCard> {
-  late bool _isActive;
+class _StationCardState
+    extends State<_StationCard> {
+  bool _isUpdating = false;
 
-  @override
-  void initState() {
-    super.initState();
+  // ── STATUS HELPERS ─────────────────────────────────────────────────────────
 
-    // Start the switch using the value provided by the station.
-    _isActive = widget.initiallyActive;
+  String get _normalizedStatus {
+    return widget.status
+        .trim()
+        .toLowerCase();
   }
 
-  void _changeStationStatus(bool value) {
+  bool get _isActive {
+    return _normalizedStatus == 'active';
+  }
+
+  bool get _isPending {
+    return _normalizedStatus == 'pending' ||
+        widget.verificationStatus
+            .trim()
+            .toLowerCase() ==
+            'pending';
+  }
+
+  bool get _isRejected {
+    return _normalizedStatus == 'rejected' ||
+        widget.verificationStatus
+            .trim()
+            .toLowerCase() ==
+            'rejected';
+  }
+
+  bool get _isApproved {
+    return widget.verificationStatus
+        .trim()
+        .toLowerCase() ==
+        'approved';
+  }
+
+  bool get _canChangeStatus {
+    return _isApproved &&
+        (_normalizedStatus == 'active' ||
+            _normalizedStatus == 'inactive');
+  }
+
+  Color get _statusColor {
+    if (_isPending) {
+      return SoDashboard._amber;
+    }
+
+    if (_isRejected) {
+      return SoDashboard._red;
+    }
+
+    if (_isActive) {
+      return SoDashboard._green;
+    }
+
+    return SoDashboard._muted;
+  }
+
+  IconData get _statusIcon {
+    if (_isPending) {
+      return Icons.pending_actions_rounded;
+    }
+
+    if (_isRejected) {
+      return Icons.cancel_outlined;
+    }
+
+    if (_isActive) {
+      return Icons.power_rounded;
+    }
+
+    return Icons.power_settings_new_rounded;
+  }
+
+  String get _statusLabel {
+    if (_isPending) {
+      return 'PENDING';
+    }
+
+    if (_isRejected) {
+      return 'REJECTED';
+    }
+
+    if (_isActive) {
+      return 'ACTIVE';
+    }
+
+    return 'INACTIVE';
+  }
+
+  // ── CHANGE STATION STATUS ──────────────────────────────────────────────────
+
+  Future<void> _changeStationStatus(
+      bool makeActive,
+      ) async {
+    if (!_canChangeStatus ||
+        _isUpdating) {
+      return;
+    }
+
+    final String newStatus =
+    makeActive
+        ? 'Active'
+        : 'Inactive';
+
     setState(() {
-      _isActive = value;
+      _isUpdating = true;
     });
 
-    // This is currently only UI state.
-    // Later, the Firebase/API update can be added here.
+    try {
+      await FirebaseFirestore.instance
+          .collection('stations')
+          .doc(widget.stationId)
+          .update({
+        'status': newStatus,
+      });
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (!mounted) {
+        return;
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        margin: const EdgeInsets.all(14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        content: Row(
-          children: [
-            Icon(
-              _isActive
-                  ? Icons.check_circle_rounded
-                  : Icons.power_settings_new_rounded,
-              color: Colors.white,
-              size: 20,
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            duration:
+            const Duration(seconds: 2),
+            margin:
+            const EdgeInsets.all(14),
+            shape:
+            RoundedRectangleBorder(
+              borderRadius:
+              BorderRadius.circular(14),
             ),
-
-            const SizedBox(width: 10),
-
-            Expanded(
-              child: Text(
-                _isActive
-                    ? '${widget.stationName} is now active'
-                    : '${widget.stationName} is now inactive',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
+            content: Row(
+              children: [
+                Icon(
+                  makeActive
+                      ? Icons.check_circle_rounded
+                      : Icons
+                      .power_settings_new_rounded,
+                  color: Colors.white,
+                  size: 20,
                 ),
-              ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Text(
+                    makeActive
+                        ? '${widget.stationName} is now active'
+                        : '${widget.stationName} is now inactive',
+                    style: const TextStyle(
+                      fontWeight:
+                      FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
+    } on FirebaseException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            backgroundColor:
+            SoDashboard._red,
+            duration:
+            const Duration(seconds: 3),
+            margin:
+            const EdgeInsets.all(14),
+            content: Text(
+              'Could not change station status: '
+                  '${e.message ?? e.code}',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
   }
+
+  // ── BUILD ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final Color activeStatusColor = _isActive
-        ? SoDashboard._green
-        : SoDashboard._muted;
-
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration:
+      const Duration(milliseconds: 250),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius:
+        BorderRadius.circular(17),
         border: Border.all(
-          color: _isActive
-              ? SoDashboard._border
-              : SoDashboard._border.withValues(alpha: 0.8),
+          color: SoDashboard._border,
         ),
         boxShadow: [
           BoxShadow(
-            color: SoDashboard._primary.withValues(
-              alpha: _isActive ? 0.08 : 0.04,
+            color:
+            SoDashboard._primary.withValues(
+              alpha: 0.08,
             ),
             blurRadius: 22,
             offset: const Offset(0, 8),
@@ -588,46 +1319,45 @@ class _StationCardState extends State<_StationCard> {
         ],
       ),
       child: Row(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
-          // Station icon
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+          Container(
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: _isActive
-                  ? SoDashboard._primarySurface
-                  : SoDashboard._muted.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
+              color:
+              _statusColor.withValues(
+                alpha: 0.10,
+              ),
+              borderRadius:
+              BorderRadius.circular(14),
             ),
             child: Icon(
-              _isActive
-                  ? widget.icon
-                  : Icons.power_settings_new_rounded,
-              color: _isActive
-                  ? SoDashboard._primary
-                  : SoDashboard._muted,
+              _statusIcon,
+              color: _statusColor,
               size: 21,
             ),
           ),
 
           const SizedBox(width: 12),
 
-          // Station information
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.stationName,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _isActive
-                        ? SoDashboard._textDark
-                        : SoDashboard._muted,
+                  overflow:
+                  TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color:
+                    SoDashboard._textDark,
                     fontSize: 13.3,
-                    fontWeight: FontWeight.w800,
+                    fontWeight:
+                    FontWeight.w800,
                   ),
                 ),
 
@@ -636,36 +1366,93 @@ class _StationCardState extends State<_StationCard> {
                 Text(
                   widget.stationMeta,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: SoDashboard._muted.withValues(
-                      alpha: _isActive ? 1 : 0.75,
-                    ),
+                  overflow:
+                  TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color:
+                    SoDashboard._muted,
                     fontSize: 11.5,
                   ),
                 ),
 
-                const SizedBox(height: 7),
+                const SizedBox(height: 8),
 
-                // Existing Online / Maintenance / Offline status badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: widget.badgeColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    widget.badgeText.toUpperCase(),
-                    style: TextStyle(
-                      color: widget.badgeColor,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.25,
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildRevenueBadge(
+                      label: 'Latest',
+                      value:
+                      widget.actualIncome,
+                      icon:
+                      Icons.payments_outlined,
                     ),
-                  ),
+
+                    _buildRevenueBadge(
+                      label: 'Total',
+                      value:
+                      widget.totalIncome,
+                      icon: Icons
+                          .account_balance_wallet_outlined,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Container(
+                      padding:
+                      const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                        _statusColor
+                            .withValues(
+                          alpha: 0.12,
+                        ),
+                        borderRadius:
+                        BorderRadius.circular(
+                          999,
+                        ),
+                      ),
+                      child: Text(
+                        _statusLabel,
+                        style: TextStyle(
+                          color:
+                          _statusColor,
+                          fontSize: 9,
+                          fontWeight:
+                          FontWeight.w900,
+                          letterSpacing:
+                          0.25,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 7),
+
+                    Expanded(
+                      child: Text(
+                        widget.stationId,
+                        maxLines: 1,
+                        overflow:
+                        TextOverflow.ellipsis,
+                        style:
+                        const TextStyle(
+                          color:
+                          SoDashboard._muted,
+                          fontSize: 9.5,
+                          fontWeight:
+                          FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -673,32 +1460,65 @@ class _StationCardState extends State<_StationCard> {
 
           const SizedBox(width: 8),
 
-          // Active / Inactive toggle
           Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+            MainAxisSize.min,
             children: [
-              Transform.scale(
-                scale: 0.82,
-                child: Switch.adaptive(
-                  value: _isActive,
-                  onChanged: _changeStationStatus,
-                  activeThumbColor: Colors.white,
-                  activeTrackColor: SoDashboard._green,
-                  inactiveThumbColor: Colors.white,
-                  inactiveTrackColor:
-                  SoDashboard._muted.withValues(alpha: 0.30),
+              if (_isUpdating)
+                const SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: Padding(
+                    padding:
+                    EdgeInsets.all(9),
+                    child:
+                    CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color:
+                      SoDashboard._primary,
+                    ),
+                  ),
+                )
+              else
+                Transform.scale(
+                  scale: 0.82,
+                  child:
+                  Switch.adaptive(
+                    value: _isActive,
+                    onChanged:
+                    _canChangeStatus
+                        ? (bool value) {
+                      _changeStationStatus(
+                        value,
+                      );
+                    }
+                        : null,
+                    activeThumbColor:
+                    Colors.white,
+                    activeTrackColor:
+                    SoDashboard._green,
+                    inactiveThumbColor:
+                    Colors.white,
+                    inactiveTrackColor:
+                    SoDashboard._muted
+                        .withValues(
+                      alpha: 0.30,
+                    ),
+                  ),
                 ),
-              ),
 
               Transform.translate(
-                offset: const Offset(0, -4),
+                offset:
+                const Offset(0, -4),
                 child: Text(
-                  _isActive ? 'ACTIVE' : 'INACTIVE',
+                  _statusLabel,
                   style: TextStyle(
-                    color: activeStatusColor,
+                    color: _statusColor,
                     fontSize: 8.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.25,
+                    fontWeight:
+                    FontWeight.w900,
+                    letterSpacing:
+                    0.25,
                   ),
                 ),
               ),
@@ -708,218 +1528,659 @@ class _StationCardState extends State<_StationCard> {
       ),
     );
   }
+
+  Widget _buildRevenueBadge({
+    required String label,
+    required double value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding:
+      const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color:
+        SoDashboard._green.withValues(
+          alpha: 0.08,
+        ),
+        borderRadius:
+        BorderRadius.circular(8),
+        border: Border.all(
+          color:
+          SoDashboard._green.withValues(
+            alpha: 0.14,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisSize:
+        MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color:
+            SoDashboard._green,
+            size: 12,
+          ),
+
+          const SizedBox(width: 4),
+
+          Text(
+            '$label: '
+                'Rs. ${value.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color:
+              SoDashboard._green,
+              fontSize: 9.5,
+              fontWeight:
+              FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// LARGE WEEKLY EARNINGS GRAPH CARD
+// BOOKING REQUEST CARD
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _GraphCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final List<double> values;
-  final List<String> labels;
-  final String footerLabel;
-  final String footerValue;
-  final String footerButtonText;
+class _BookingRequestCard
+    extends StatefulWidget {
+  final String stationId;
+  final String stationName;
 
-  const _GraphCard({
-    required this.title,
-    required this.subtitle,
-    required this.values,
-    required this.labels,
-    required this.footerLabel,
-    required this.footerValue,
-    required this.footerButtonText,
+  final String bookingDate;
+  final String bookingTime;
+  final String bookingUserId;
+
+  const _BookingRequestCard({
+    required this.stationId,
+    required this.stationName,
+    required this.bookingDate,
+    required this.bookingTime,
+    required this.bookingUserId,
   });
+
+  @override
+  State<_BookingRequestCard> createState() =>
+      _BookingRequestCardState();
+}
+
+class _BookingRequestCardState
+    extends State<_BookingRequestCard> {
+  bool _isUpdating = false;
+
+  // ── SHORT DRIVER ID ────────────────────────────────────────────────────────
+
+  String get _shortDriverId {
+    final String id =
+    widget.bookingUserId.trim();
+
+    if (id.length <= 12) {
+      return id;
+    }
+
+    return '${id.substring(0, 6)}...'
+        '${id.substring(id.length - 4)}';
+  }
+
+  // ── ACCEPT BOOKING ─────────────────────────────────────────────────────────
+
+  Future<void> _acceptBooking() async {
+    if (_isUpdating) {
+      return;
+    }
+
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      final User? currentUser =
+          FirebaseAuth.instance.currentUser;
+
+      if (currentUser == null) {
+        throw Exception(
+          'You must be logged in.',
+        );
+      }
+
+      final DocumentReference<
+          Map<String, dynamic>>
+      stationReference =
+      FirebaseFirestore.instance
+          .collection('stations')
+          .doc(widget.stationId);
+
+      // Transaction verifies that:
+      //
+      // 1. station still belongs to this owner
+      // 2. same driver's booking is still present
+      //
+      // before accepting it.
+      await FirebaseFirestore.instance
+          .runTransaction(
+            (
+            Transaction transaction,
+            ) async {
+          final DocumentSnapshot<
+              Map<String, dynamic>>
+          snapshot =
+          await transaction.get(
+            stationReference,
+          );
+
+          if (!snapshot.exists) {
+            throw Exception(
+              'Station no longer exists.',
+            );
+          }
+
+          final Map<String, dynamic> data =
+          snapshot.data()!;
+
+          final String ownerId =
+              data['user_id']
+                  ?.toString()
+                  .trim() ??
+                  '';
+
+          if (ownerId !=
+              currentUser.uid) {
+            throw Exception(
+              'You do not own this station.',
+            );
+          }
+
+          final String bookingUserId =
+              data['booking_user_id']
+                  ?.toString()
+                  .trim() ??
+                  '';
+
+          if (bookingUserId !=
+              widget.bookingUserId) {
+            throw Exception(
+              'This booking request has changed.',
+            );
+          }
+
+          if (bookingUserId.isEmpty) {
+            throw Exception(
+              'This booking request no longer exists.',
+            );
+          }
+
+          transaction.update(
+            stationReference,
+            {
+              'is_booking_requested':
+              '0',
+
+              'is_booking_confirmed':
+              '1',
+            },
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            backgroundColor:
+            SoDashboard._green,
+            duration:
+            const Duration(
+              seconds: 2,
+            ),
+            margin:
+            const EdgeInsets.all(
+              14,
+            ),
+            shape:
+            RoundedRectangleBorder(
+              borderRadius:
+              BorderRadius.circular(
+                14,
+              ),
+            ),
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Text(
+                    'Booking accepted for '
+                        '${widget.stationName}.',
+                    style: const TextStyle(
+                      fontWeight:
+                      FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      String message =
+      e.toString().replaceFirst(
+        'Exception: ',
+        '',
+      );
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            backgroundColor:
+            SoDashboard._red,
+            content: Text(
+              'Could not accept booking: '
+                  '$message',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  // ── REJECT BOOKING ─────────────────────────────────────────────────────────
+
+  Future<void> _rejectBooking() async {
+    if (_isUpdating) {
+      return;
+    }
+
+    final bool? shouldReject =
+    await showDialog<bool>(
+      context: context,
+      builder:
+          (BuildContext dialogContext) {
+        return AlertDialog(
+          shape:
+          RoundedRectangleBorder(
+            borderRadius:
+            BorderRadius.circular(
+              18,
+            ),
+          ),
+          title: const Text(
+            'Reject booking?',
+          ),
+          content: Text(
+            'Reject the booking request for '
+                '${widget.stationName}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(
+                  dialogContext,
+                ).pop(false);
+              },
+              child:
+              const Text(
+                'Cancel',
+              ),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(
+                  dialogContext,
+                ).pop(true);
+              },
+              style:
+              ElevatedButton.styleFrom(
+                backgroundColor:
+                SoDashboard._red,
+                foregroundColor:
+                Colors.white,
+              ),
+              child:
+              const Text(
+                'Reject',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReject != true) {
+      return;
+    }
+
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      final User? currentUser =
+          FirebaseAuth.instance.currentUser;
+
+      if (currentUser == null) {
+        throw Exception(
+          'You must be logged in.',
+        );
+      }
+
+      final DocumentReference<
+          Map<String, dynamic>>
+      stationReference =
+      FirebaseFirestore.instance
+          .collection('stations')
+          .doc(widget.stationId);
+
+      await FirebaseFirestore.instance
+          .runTransaction(
+            (
+            Transaction transaction,
+            ) async {
+          final DocumentSnapshot<
+              Map<String, dynamic>>
+          snapshot =
+          await transaction.get(
+            stationReference,
+          );
+
+          if (!snapshot.exists) {
+            throw Exception(
+              'Station no longer exists.',
+            );
+          }
+
+          final Map<String, dynamic> data =
+          snapshot.data()!;
+
+          final String ownerId =
+              data['user_id']
+                  ?.toString()
+                  .trim() ??
+                  '';
+
+          if (ownerId !=
+              currentUser.uid) {
+            throw Exception(
+              'You do not own this station.',
+            );
+          }
+
+          final String bookingUserId =
+              data['booking_user_id']
+                  ?.toString()
+                  .trim() ??
+                  '';
+
+          if (bookingUserId !=
+              widget.bookingUserId) {
+            throw Exception(
+              'This booking request has changed.',
+            );
+          }
+
+          transaction.update(
+            stationReference,
+            {
+              'booking_date': '',
+              'booking_time': '',
+              'booking_user_id': '',
+
+              'is_booking_requested':
+              '0',
+
+              'is_booking_confirmed':
+              '0',
+            },
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            backgroundColor:
+            SoDashboard._red,
+            duration:
+            const Duration(
+              seconds: 2,
+            ),
+            margin:
+            const EdgeInsets.all(
+              14,
+            ),
+            shape:
+            RoundedRectangleBorder(
+              borderRadius:
+              BorderRadius.circular(
+                14,
+              ),
+            ),
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.cancel_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Text(
+                    'Booking rejected for '
+                        '${widget.stationName}.',
+                    style: const TextStyle(
+                      fontWeight:
+                      FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      String message =
+      e.toString().replaceFirst(
+        'Exception: ',
+        '',
+      );
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior:
+            SnackBarBehavior.floating,
+            backgroundColor:
+            SoDashboard._red,
+            content: Text(
+              'Could not reject booking: '
+                  '$message',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  // ── BUILD ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding:
+      const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            SoDashboard._primary,
-            SoDashboard._primaryDark,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(18),
+        border: Border.all(
+          color:
+          SoDashboard._border,
         ),
-        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: SoDashboard._primary.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color:
+            SoDashboard._primary
+                .withValues(
+              alpha: 0.07,
+            ),
+            blurRadius: 20,
+            offset:
+            const Offset(0, 8),
           ),
         ],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -85,
-            top: -75,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.11),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
+          // ── TOP ──────────────────────────────────────────────────────────
 
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                ),
-              ),
-
-              const SizedBox(height: 2),
-
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75),
-                  fontSize: 12,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              SizedBox(
-                height: 92,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: List.generate(
-                    values.length,
-                        (index) {
-                      final bool isLastBar =
-                          index == values.length - 1;
-
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right:
-                            index == values.length - 1 ? 0 : 7,
-                          ),
-                          child: FractionallySizedBox(
-                            heightFactor: values[index] / 100,
-                            alignment: Alignment.bottomCenter,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: isLastBar
-                                    ? Colors.white
-                                    : Colors.white.withValues(
-                                  alpha: 0.36,
-                                ),
-                                borderRadius:
-                                const BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8),
-                                  bottomLeft: Radius.circular(3),
-                                  bottomRight: Radius.circular(3),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+              Container(
+                width: 44,
+                height: 44,
+                decoration:
+                BoxDecoration(
+                  color:
+                  SoDashboard._amber
+                      .withValues(
+                    alpha: 0.12,
+                  ),
+                  borderRadius:
+                  BorderRadius.circular(
+                    13,
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 7),
-
-              Row(
-                children: List.generate(
-                  labels.length,
-                      (index) {
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: index == labels.length - 1 ? 0 : 7,
-                        ),
-                        child: Text(
-                          labels[index],
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color:
-                            Colors.white.withValues(alpha: 0.75),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                child:
+                const Icon(
+                  Icons
+                      .event_note_rounded,
+                  color:
+                  SoDashboard._amber,
+                  size: 22,
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(
+                width: 12,
+              ),
 
-              Container(
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            footerLabel,
-                            style: TextStyle(
-                              color: Colors.white.withValues(
-                                alpha: 0.73,
-                              ),
-                              fontSize: 11,
-                            ),
-                          ),
-
-                          const SizedBox(height: 2),
-
-                          Text(
-                            footerValue,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      widget.stationName,
+                      maxLines: 1,
+                      overflow:
+                      TextOverflow
+                          .ellipsis,
+                      style:
+                      const TextStyle(
+                        color:
+                        SoDashboard
+                            ._textDark,
+                        fontSize: 14,
+                        fontWeight:
+                        FontWeight
+                            .w900,
                       ),
                     ),
 
+                    const SizedBox(
+                      height: 4,
+                    ),
+
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
+                      padding:
+                      const EdgeInsets
+                          .symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                      decoration:
+                      BoxDecoration(
+                        color:
+                        SoDashboard
+                            ._amber
+                            .withValues(
+                          alpha: 0.10,
+                        ),
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          999,
+                        ),
                       ),
-                      child: Text(
-                        footerButtonText,
-                        style: const TextStyle(
-                          color: SoDashboard._primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                      child:
+                      const Text(
+                        'PENDING APPROVAL',
+                        style:
+                        TextStyle(
+                          color:
+                          SoDashboard
+                              ._amber,
+                          fontSize: 9,
+                          fontWeight:
+                          FontWeight
+                              .w900,
+                          letterSpacing:
+                          0.3,
                         ),
                       ),
                     ),
@@ -928,172 +2189,179 @@ class _GraphCard extends StatelessWidget {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SMALL WEEKLY VEHICLES GRAPH CARD
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _MiniVehicleGraphCard extends StatelessWidget {
-  final String totalVehicles;
-  final String subtitle;
-  final List<double> values;
-  final List<String> labels;
-
-  const _MiniVehicleGraphCard({
-    required this.totalVehicles,
-    required this.subtitle,
-    required this.values,
-    required this.labels,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final double maxValue = values.reduce(
-          (a, b) => a > b ? a : b,
-    );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: SoDashboard._border,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: SoDashboard._primary.withValues(alpha: 0.08),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+          const SizedBox(
+            height: 15,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 95,
+
+          // ── BOOKING DETAILS ──────────────────────────────────────────────
+
+          Container(
+            width:
+            double.infinity,
+            padding:
+            const EdgeInsets.all(
+              12,
+            ),
+            decoration:
+            BoxDecoration(
+              color:
+              SoDashboard._bg,
+              borderRadius:
+              BorderRadius.circular(
+                12,
+              ),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.directions_car_rounded,
-                  color: SoDashboard._primary,
-                  size: 24,
+                _BookingDetailRow(
+                  icon:
+                  Icons.calendar_today_rounded,
+                  label:
+                  'Date',
+                  value:
+                  widget.bookingDate,
                 ),
 
-                const SizedBox(height: 10),
-
-                Text(
-                  totalVehicles,
-                  style: const TextStyle(
-                    color: SoDashboard._textDark,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
-                  ),
+                const SizedBox(
+                  height: 9,
                 ),
 
-                const SizedBox(height: 3),
+                _BookingDetailRow(
+                  icon:
+                  Icons.access_time_rounded,
+                  label:
+                  'Time',
+                  value:
+                  widget.bookingTime,
+                ),
 
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: SoDashboard._muted,
-                    fontSize: 11.5,
-                    height: 1.3,
-                  ),
+                const SizedBox(
+                  height: 9,
+                ),
+
+                _BookingDetailRow(
+                  icon:
+                  Icons.person_outline_rounded,
+                  label:
+                  'Driver',
+                  value:
+                  _shortDriverId,
                 ),
               ],
             ),
           ),
 
-          const SizedBox(width: 14),
+          const SizedBox(
+            height: 14,
+          ),
 
-          Expanded(
-            child: Column(
+          // ── ACTION BUTTONS ───────────────────────────────────────────────
+
+          if (_isUpdating)
+            const SizedBox(
+              height: 46,
+              child:
+              Center(
+                child:
+                CircularProgressIndicator(
+                  strokeWidth:
+                  2,
+                  color:
+                  SoDashboard._primary,
+                ),
+              ),
+            )
+          else
+            Row(
               children: [
-                SizedBox(
-                  height: 70,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(
-                      values.length,
-                          (index) {
-                        final double heightFactor =
-                            values[index] / maxValue;
-
-                        final bool isHighest =
-                            values[index] == maxValue;
-
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              right:
-                              index == values.length - 1 ? 0 : 6,
-                            ),
-                            child: FractionallySizedBox(
-                              heightFactor: heightFactor,
-                              alignment: Alignment.bottomCenter,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isHighest
-                                      ? SoDashboard._primary
-                                      : SoDashboard._primary
-                                      .withValues(
-                                    alpha: 0.18,
-                                  ),
-                                  borderRadius:
-                                  const BorderRadius.only(
-                                    topLeft: Radius.circular(7),
-                                    topRight: Radius.circular(7),
-                                    bottomLeft: Radius.circular(3),
-                                    bottomRight: Radius.circular(3),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                Expanded(
+                  child:
+                  OutlinedButton.icon(
+                    onPressed:
+                    _rejectBooking,
+                    icon:
+                    const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                    ),
+                    label:
+                    const Text(
+                      'Reject',
+                    ),
+                    style:
+                    OutlinedButton
+                        .styleFrom(
+                      foregroundColor:
+                      SoDashboard._red,
+                      side:
+                      const BorderSide(
+                        color:
+                        SoDashboard._red,
+                      ),
+                      padding:
+                      const EdgeInsets
+                          .symmetric(
+                        vertical:
+                        12,
+                      ),
+                      shape:
+                      RoundedRectangleBorder(
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          12,
+                        ),
+                      ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 7),
+                const SizedBox(
+                  width: 10,
+                ),
 
-                Row(
-                  children: List.generate(
-                    labels.length,
-                        (index) {
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right:
-                            index == labels.length - 1 ? 0 : 6,
-                          ),
-                          child: Text(
-                            labels[index],
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: SoDashboard._muted,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                Expanded(
+                  child:
+                  ElevatedButton.icon(
+                    onPressed:
+                    _acceptBooking,
+                    icon:
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                    ),
+                    label:
+                    const Text(
+                      'Accept',
+                    ),
+                    style:
+                    ElevatedButton
+                        .styleFrom(
+                      backgroundColor:
+                      SoDashboard._green,
+                      foregroundColor:
+                      Colors.white,
+                      elevation: 0,
+                      padding:
+                      const EdgeInsets
+                          .symmetric(
+                        vertical:
+                        12,
+                      ),
+                      shape:
+                      RoundedRectangleBorder(
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          12,
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
         ],
       ),
     );
@@ -1101,81 +2369,68 @@ class _MiniVehicleGraphCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// NOTIFICATION TILE
+// BOOKING DETAIL ROW
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _NotificationTile extends StatelessWidget {
-  final Color color;
-  final String message;
-  final String time;
+class _BookingDetailRow
+    extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
 
-  const _NotificationTile({
-    required this.color,
-    required this.message,
-    required this.time,
+  const _BookingDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 9,
-          height: 9,
-          margin: const EdgeInsets.only(top: 5),
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
+        Icon(
+          icon,
+          color:
+          SoDashboard._primary,
+          size: 17,
+        ),
+
+        const SizedBox(width: 8),
+
+        SizedBox(
+          width: 48,
+          child: Text(
+            label,
+            style:
+            const TextStyle(
+              color:
+              SoDashboard._muted,
+              fontSize: 11.5,
+              fontWeight:
+              FontWeight.w600,
+            ),
           ),
         ),
 
-        const SizedBox(width: 10),
+        const SizedBox(width: 6),
 
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(
-                  color: SoDashboard._textDark,
-                  fontSize: 12.4,
-                  height: 1.45,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-
-              const SizedBox(height: 2),
-
-              Text(
-                time,
-                style: const TextStyle(
-                  color: SoDashboard._muted,
-                  fontSize: 11,
-                ),
-              ),
-            ],
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow:
+            TextOverflow.ellipsis,
+            style:
+            const TextStyle(
+              color:
+              SoDashboard._textDark,
+              fontSize: 12,
+              fontWeight:
+              FontWeight.w800,
+            ),
           ),
         ),
       ],
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// DIVIDER LINE
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _DividerLine extends StatelessWidget {
-  const _DividerLine();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      margin: const EdgeInsets.symmetric(vertical: 11),
-      color: SoDashboard._border,
     );
   }
 }

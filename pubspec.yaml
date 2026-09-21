@@ -44,6 +44,8 @@ dependencies:
   http: ^1.1.0        # For API calls
   url_launcher: ^6.2.0 # To open Google Maps for navigation
   cloud_firestore: ^5.6.12 # For Firestore database
+  image_picker: ^1.1.2
+  firebase_storage: ^12.3.0
 
 dev_dependencies:
   flutter_test:
